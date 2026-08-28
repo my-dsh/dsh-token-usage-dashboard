@@ -1,0 +1,19 @@
+{
+  "name": "dsh-token-usage-dashboard",
+  "version": "0.1.2-alpha.1",
+  "description": "Cross-session token usage dashboard for DeepSeek Harness: a SQLite-backed capture listener + Remote service + browser dashboard panel, installable as a standalone profile bundle.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "host",
+    "client",
+    "bundle"
+  ],
+  "scripts": {
+    "typecheck": "tsc -b",
+    "lint": "oxlint .",
+    "build": "pnpm -r build"
+  },
+  "packageManager": "pnpm@11.7.0"
+}
