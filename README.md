@@ -1,110 +1,112 @@
 # dsh-token-usage-dashboard
 
-Cross-session token usage dashboard plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
+[English](README.en.md) | 中文
 
-This plugin captures per-request token usage from the model firehose, persists it to a SQLite database, and renders a floating dashboard panel in the web GUI showing daily `(provider, model)`-grouped totals: token buckets, throughput, TTFT, LLM step time, and cache-hit ratio.
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的跨会话 Token 用量看板插件。
 
-## Architecture
+该插件从模型调用流中捕获每次请求的 Token 用量，持久化到 SQLite 数据库，并在 Web GUI 中渲染一个浮动看板面板，展示每日按 `(provider, model)` 分组的汇总数据：Token 桶、吞吐量、TTFT、LLM 步骤耗时和缓存命中率。
 
-Three packages compose the full feature:
+## 架构
 
-| Package | Name | Role |
+三个包组成完整功能：
+
+| 包 | 名称 | 角色 |
 |---|---|---|
-| `host/` | `@deepseek-ai/dsh-token-usage` | Session/event listener that captures per-request usage records and exposes a `TokenUsageStore` Service Definition backed by SQLite |
-| `client/` | `@deepseek-ai/dsh-client-token-usage` | Browser dashboard panel registering into `shell.overlay` — a floating button opening a modal with daily totals |
-| `bundle/` | `@deepseek-ai/dsh-token-usage-dashboard` | Profile bundle: one `cordis.patch.yml` inserting all four rows (SQLite provider + capture listener + Remote service + browser panel) |
+| `host/` | `@deepseek-ai/dsh-token-usage` | Session/event 监听器，捕获每次请求的用量记录，暴露基于 SQLite 的 `TokenUsageStore` Service Definition |
+| `client/` | `@deepseek-ai/dsh-client-token-usage` | 浏览器看板面板，注册到 `shell.overlay`——一个悬浮按钮打开每日汇总的模态面板 |
+| `bundle/` | `@deepseek-ai/dsh-token-usage-dashboard` | Profile bundle：一个 `cordis.patch.yml` 插入全部四行（SQLite provider + 捕获监听器 + Remote 服务 + 浏览器面板） |
 
-### Data flow
+### 数据流
 
 ```
-Model call → session/event listener → TokenUsageStore.append(record)
-                                        ↓
-                                   SQLite database
-                                        ↓
-                            TokenUsageRemoteService.dailySummary(date, timeZone)
-                                        ↓  (Typert Remote RPC)
-                            Browser panel (shell.overlay entry)
+模型调用 → session/event 监听器 → TokenUsageStore.append(record)
+                                    ↓
+                               SQLite 数据库
+                                    ↓
+                        TokenUsageRemoteService.dailySummary(date, timeZone)
+                                    ↓  (Typert Remote RPC)
+                        浏览器面板 (shell.overlay 入口)
 ```
 
-The capture listener folds step boundaries through the shared `@deepseek-ai/dsh-step-timing` primitives (`step/start` → first token → `assistant/message`), so TTFT and decode durations agree with the session-scoped projection. The browser panel sends the local timezone (`browserTimeZone`) with each request, so the host bounds the day by the same zone.
+捕获监听器通过共享的 `@deepseek-ai/dsh-step-timing` 原语折叠步骤边界（`step/start` → 首 token → `assistant/message`），因此 TTFT 和 decode 时长与会话作用域投影一致。浏览器面板每次请求携带本地时区（`browserTimeZone`），宿主据此用同一时区界定当日边界。
 
-## Installation
+## 安装
 
 ```sh
 dsh plugin --profile <name> add @deepseek-ai/dsh-token-usage-dashboard
 ```
 
-The panel renders only inside a web surface, so the target profile must already provide the client runtime, connection, and `shell.overlay` layout. Requires `pnpm` on `PATH`.
+面板仅在 web 界面中渲染，因此目标 profile 必须已提供 client 运行时、连接和 `shell.overlay` 布局。需要 `pnpm` 在 `PATH` 上。
 
-### SQLite path
+### SQLite 路径
 
-The default database location is `token-usage.sqlite` under the DSH home directory. Override via config:
+默认数据库位置为 DSH 主目录下的 `token-usage.sqlite`。可通过配置覆盖：
 
 ```yaml
 - id: token-usage-sqlite
   name: '@deepseek-ai/dsh-token-usage/sqlite-provider'
   config:
-    path: /custom/path/to/token-usage.sqlite
+    path: /自定义路径/token-usage.sqlite
 ```
 
-## Usage
+## 用法
 
-Capture starts on the next boot and needs no configuration: every successful model call appends one record. Open the dashboard from the floating button at the bottom-right of the shell, pick a date, and refresh.
+采集在下次启动时开始，无需配置：每次成功的模型调用追加一条记录。从 shell 右下角的悬浮按钮打开看板，选择日期后刷新。
 
-The store never auto-deletes; `tokenUsage.purge(before?)` drops rows before an epoch-millisecond cutoff for retention.
+Store 从不自动删除；`tokenUsage.purge(before?)` 删除某个 epoch 毫秒时间戳之前的行，用于保留策略。
 
-## Source layout
+## 源码布局
 
 ```
 dsh-token-usage-dashboard/
 ├── host/
 │   ├── src/
-│   │   ├── index.ts           # Session/event capture listener
+│   │   ├── index.ts           # Session/event 捕获监听器
 │   │   ├── store.ts           # TokenUsageStore Service Definition + SqliteTokenUsageStore
-│   │   ├── sqlite-provider.ts # Cordis plugin mounting the SQLite store
-│   │   ├── remote.ts          # Typert Remote service (dailySummary, purge)
-│   │   ├── types.ts           # UsageRecord, DailySummary types
-│   │   ├── types.d.ts         # Generated type declarations
-│   │   ├── invariant.ts       # Package invariant companion
+│   │   ├── sqlite-provider.ts # 挂载 SQLite store 的 Cordis 插件
+│   │   ├── remote.ts          # Typert Remote 服务 (dailySummary, purge)
+│   │   ├── types.ts           # UsageRecord, DailySummary 类型
+│   │   ├── types.d.ts         # 生成的类型声明
+│   │   ├── invariant.ts       # 包不变量伴随
 │   │   └── ...
 │   └── package.json
 ├── client/
 │   ├── src/
-│   │   ├── index.ts           # Host loader entry (empty apply)
-│   │   ├── invariant.ts       # Package invariant companion
+│   │   ├── index.ts           # Host 加载入口（空 apply）
+│   │   ├── invariant.ts       # 包不变量伴随
 │   │   ├── client/
-│   │   │   ├── index.ts       # Browser plugin: shell.overlay registration
-│   │   │   ├── slots.ts        # Inject face + Remote API call
-│   │   │   ├── TokenUsageDashboard.tsx  # Dashboard panel component
-│   │   │   ├── format.ts       # Number/date formatting
-│   │   │   ├── locales.ts      # Chinese locale dictionary
+│   │   │   ├── index.ts       # 浏览器插件：shell.overlay 注册
+│   │   │   ├── slots.ts       # Inject face + Remote API 调用
+│   │   │   ├── TokenUsageDashboard.tsx  # 看板面板组件
+│   │   │   ├── format.ts      # 数字/日期格式化
+│   │   │   ├── locales.ts     # 中文 locale 字典
 │   │   │   └── ...
 │   │   └── ...
 │   └── package.json
 ├── bundle/
-│   ├── cordis.patch.yml       # 4-row insert: provider + listener + remote + panel
+│   ├── cordis.patch.yml       # 4 行插入：provider + 监听器 + remote + 面板
 │   ├── src/
-│   │   ├── index.ts           # Empty carrier
-│   │   └── invariant.ts       # Bundle invariant companion
+│   │   ├── index.ts           # 空壳 carrier
+│   │   └── invariant.ts       # Bundle 不变量伴随
 │   └── package.json
-└── package.json               # Root workspace
+└── package.json               # 根 workspace
 ```
 
-## Dependencies
+## 依赖
 
-This plugin depends on the following DSH packages (installed from the DSH monorepo):
+该插件依赖以下 DSH 包（从 DSH monorepo 安装）：
 
-- `@deepseek-ai/cordis` — Cordis plugin framework
-- `@deepseek-ai/dsh-session` — Session events and types
-- `@deepseek-ai/dsh-llm` — LLM message utilities
-- `@deepseek-ai/dsh-step-timing` — Step boundary timing primitives
-- `@deepseek-ai/dsh-zoned-time` — Timezone day bucketing
-- `@deepseek-ai/dsh-typert-protocol` — Typert Remote protocol
-- `@deepseek-ai/dsh-api-remotes` — Remote client assembly
-- `@deepseek-ai/dsh-client-ui-layout` — `shell.overlay` slot owner
-- `@deepseek-ai/dsh-client-ui-renderer` — Slot registry service
-- `@deepseek-ai/dsh-client-locale` — Locale service
+- `@deepseek-ai/cordis` — Cordis 插件框架
+- `@deepseek-ai/dsh-session` — Session 事件和类型
+- `@deepseek-ai/dsh-llm` — LLM 消息工具
+- `@deepseek-ai/dsh-step-timing` — 步骤边界计时原语
+- `@deepseek-ai/dsh-zoned-time` — 时区日分桶
+- `@deepseek-ai/dsh-typert-protocol` — Typert Remote 协议
+- `@deepseek-ai/dsh-api-remotes` — Remote 客户端组装
+- `@deepseek-ai/dsh-client-ui-layout` — `shell.overlay` slot 声明者
+- `@deepseek-ai/dsh-client-ui-renderer` — Slot registry 服务
+- `@deepseek-ai/dsh-client-locale` — Locale 服务
 
-## License
+## 许可证
 
 MIT
