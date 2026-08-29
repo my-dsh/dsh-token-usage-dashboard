@@ -1,36 +1,10 @@
 {
-  "extends": "../../../tsconfig.base.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "lib/types"
   },
   "include": [
     "src"
-  ],
-  "references": [
-    {
-      "path": "../../../vendor/cosmokit"
-    },
-    {
-      "path": "../../../vendor/cordis"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
-      "path": "../../llm/llm"
-    },
-    {
-      "path": "../../core/session"
-    },
-    {
-      "path": "../../util/step-timing"
-    },
-    {
-      "path": "../../util/zoned-time"
-    },
-    {
-      "path": "../../typert/protocol"
-    }
   ]
 }
