@@ -6,6 +6,8 @@
 
 该插件从模型调用流中捕获每次请求的 Token 用量，持久化到 SQLite 数据库，并在 Web GUI 中渲染一个浮动看板面板，展示每日按 `(provider, model)` 分组的汇总数据：Token 桶、吞吐量、TTFT、LLM 步骤耗时和缓存命中率。
 
+![Token 消费看板：按供应商与模型分组的当日汇总，含 Token 桶、缓存命中率、TTFT 与耗时 KPI](docs/dashboard.png)
+
 ## 架构
 
 三个包组成完整功能：

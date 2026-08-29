@@ -6,6 +6,8 @@ Cross-session token usage dashboard plugin for [DeepSeek Harness](https://github
 
 This plugin captures per-request token usage from the model firehose, persists it to a SQLite database, and renders a floating dashboard panel in the web GUI showing daily `(provider, model)`-grouped totals: token buckets, throughput, TTFT, LLM step time, and cache-hit ratio.
 
+![Token usage dashboard: daily totals grouped by provider and model, with token buckets, cache-hit ratio, TTFT, and duration KPIs](docs/dashboard.png)
+
 ## Architecture
 
 Three packages compose the full feature:
