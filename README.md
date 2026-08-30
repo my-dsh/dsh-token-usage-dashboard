@@ -35,8 +35,10 @@
 ## 安装
 
 ```sh
-dsh plugin --profile <name> add @deepseek-ai/dsh-token-usage-dashboard
+dsh plugin --profile <name> add https://github.com/my-dsh/dsh-token-usage-dashboard/releases/download/dist/dsh-token-usage-dashboard-dist.tgz
 ```
+
+包声明了 `dsh.bundle`，安装后自动加入 profile 的 bundle 层栈，重启 DSH 生效。
 
 面板仅在 web 界面中渲染，因此目标 profile 必须已提供 client 运行时、连接和 `shell.overlay` 布局。需要 `pnpm` 在 `PATH` 上。
 

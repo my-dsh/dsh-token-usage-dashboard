@@ -35,8 +35,10 @@ The capture listener folds step boundaries through the shared `@deepseek-ai/dsh-
 ## Installation
 
 ```sh
-dsh plugin --profile <name> add @deepseek-ai/dsh-token-usage-dashboard
+dsh plugin --profile <name> add https://github.com/my-dsh/dsh-token-usage-dashboard/releases/download/dist/dsh-token-usage-dashboard-dist.tgz
 ```
+
+The package declares `dsh.bundle`, so installing it joins the profile's bundle layer stack automatically; restart DSH to take effect.
 
 The panel renders only inside a web surface, so the target profile must already provide the client runtime, connection, and `shell.overlay` layout. Requires `pnpm` on `PATH`.
 
