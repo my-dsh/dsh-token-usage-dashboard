@@ -35,7 +35,7 @@
 ## 安装
 
 ```sh
-dsh plugin --profile <name> add https://github.com/my-dsh/dsh-token-usage-dashboard/releases/download/dist/dsh-token-usage-dashboard-dist.tgz
+dsh plugin --profile <name> add github:my-dsh/dsh-token-usage-dashboard#dist
 ```
 
 包声明了 `dsh.bundle`，安装后自动加入 profile 的 bundle 层栈，重启 DSH 生效。

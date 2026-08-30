@@ -35,7 +35,7 @@ The capture listener folds step boundaries through the shared `@deepseek-ai/dsh-
 ## Installation
 
 ```sh
-dsh plugin --profile <name> add https://github.com/my-dsh/dsh-token-usage-dashboard/releases/download/dist/dsh-token-usage-dashboard-dist.tgz
+dsh plugin --profile <name> add github:my-dsh/dsh-token-usage-dashboard#dist
 ```
 
 The package declares `dsh.bundle`, so installing it joins the profile's bundle layer stack automatically; restart DSH to take effect.
