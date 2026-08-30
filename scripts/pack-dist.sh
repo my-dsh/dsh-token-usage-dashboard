@@ -1,116 +1,105 @@
 #!/usr/bin/env bash
-# Pack the built plugin into a flat single-package tree and push it to the
-# `dist` branch, so a consumer can install straight from git:
+# Pack the built plugin into an installable single-root tarball and publish a
+# 'dist' GitHub Release carrying it, so a consumer can install straight from a
+# URL:
 #
-#   dsh plugin add github:my-dsh/dsh-token-usage-dashboard#dist
+#   dsh plugin --profile <name> add \
+#     https://github.com/my-dsh/dsh-token-usage-dashboard/releases/download/dist/dsh-token-usage-dashboard-dist.tgz
 #
-# pnpm installs a git-hosted dependency as ONE package: it prunes any
-# node_modules/ inside the checkout (npm-pack rules) and resolves nested
-# `file:` dependencies consumer-relatively, so the multi-package workspace
-# layout cannot ship through a git branch. The dist branch is therefore a
-# FLAT single package that merges the workspace packages:
+# A plain tarball install materializes bundled directories verbatim, so the
+# pack ships the workspace as a root bundle plus every sibling workspace
+# package preinstalled under node_modules:
 #
-#   package.json      name = the host package name (the listener row's
-#                     specifier); dsh carries BOTH `bundle` and `client`;
-#                     exports map serves every host subpath plus `./client`
-#                     from one root; dependencies keep the host runtime deps
-#   cordis.patch.yml  generated: three rows naming the flat root; the client
-#                     row is dropped — the browser bundle is served through
-#                     the listener row package's `dsh.client` declaration
-#   lib/              the host build
-#   client.js         the client build
+#   package.json       the bundle manifest; sibling workspace deps replaced by
+#                      the bundled directory presence (no file:/workspace: refs
+#                      — pnpm resolves those consumer-relatively from a packed
+#                      resource)
+#   cordis.patch.yml    copied from bundle/ (the dsh.bundle.patch target)
+#   node_modules/<scope>/<pkg>/
+#                      every non-bundle workspace package (host, client, …),
+#                      preinstalled with manifest and built lib/
 #
-# `pnpm run build` must have produced host/lib and client/lib first. Requires
-# a built deepseek-harness checkout beside this repository (see BUILD.md)
-# because the build resolves @deepseek-ai/* through workspace overrides.
+# The nested node_modules is the whole point: npm/pnpm keep it intact from a
+# plain tarball, so every patch-row module specifier stays resolvable from the
+# bundle package. (pnpm DOES strip it out of git-hosted branches — hence the
+# tarball URL, never github:<repo>#ref.)
+#
+# Also pushes the same tree to the `dist` branch for source browsing.
+#
+# `pnpm run build` must have produced bundle/lib and every sibling's lib.
+# Requires a built deepseek-harness checkout beside this repository (see
+# BUILD.md) because the build resolves @deepseek-ai/* through workspace
+# overrides pointing at it.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-REPO_URL="$(git config --get remote.origin.url)"
+REPO="$(git config --get remote.origin.url)"
 BRANCH=dist
 PACK=.dist-pack
 BUNDLE=bundle
-HOST=host
-CLIENT=client
 
-[ -f "$HOST/lib/index.js" ] || { echo "pack-dist: $HOST/lib missing — run pnpm run build first" >&2; exit 1; }
-[ -f "$CLIENT/lib/client.js" ] || { echo "pack-dist: $CLIENT/lib/client.js missing — run pnpm run build first" >&2; exit 1; }
+[ -f "$BUNDLE/lib/index.js" ] || { echo "pack-dist: $BUNDLE/lib/index.js missing — run pnpm run build first" >&2; exit 1; }
+
+# Siblings = workspace dirs (not bundle, not node_modules) carrying a built lib/.
+SIBLINGS=()
+for dir in */; do
+  dir="${dir%/}"
+  [ "$dir" = "$BUNDLE" ] && continue
+  [ "$dir" = node_modules ] && continue
+  [ -f "$dir/package.json" ] && [ -f "$dir/lib/index.js" ] && SIBLINGS+=("$dir")
+done
+[ ${#SIBLINGS[@]} -gt 0 ] || { echo "pack-dist: no sibling package with a built lib/ found" >&2; exit 1; }
 
 rm -rf "$PACK"
 mkdir -p "$PACK"
-cp -r "$HOST/lib" "$PACK/lib"
-cp "$CLIENT/lib/client.js" "$PACK/client.js"
-
-node - "$HOST/package.json" "$CLIENT/package.json" "$BUNDLE/package.json" "$PACK" <<'NODE'
+cp "$BUNDLE/package.json" "$PACK/package.json"
+cp "$BUNDLE/cordis.patch.yml" "$PACK/cordis.patch.yml"
+for dir in "${SIBLINGS[@]}"; do
+  name="$(node -p "require('./$dir/package.json').name")"
+  target="$PACK/node_modules/$name"
+  mkdir -p "$(dirname "$target")"
+  cp -r "$dir" "$target"
+  rm -rf "$target/node_modules"
+done
+# Drop the sibling workspace deps from the root manifest — the packages now
+# live in the bundled node_modules; the root must not redeclare them as `file:`
+# or `workspace:` refs, which pnpm would mis-resolve from the packed resource.
+node - "$PACK/package.json" "${SIBLINGS[*]}" <<'NODE'
 const fs = require('fs')
-const [hostPath, clientPath, bundlePath, packDir] = process.argv.slice(2)
-const host = JSON.parse(fs.readFileSync(hostPath, 'utf8'))
-const client = JSON.parse(fs.readFileSync(clientPath, 'utf8'))
-const bundle = JSON.parse(fs.readFileSync(bundlePath, 'utf8'))
-const name = host.name
-const manifest = {
-  name,
-  description: bundle.description,
-  version: bundle.version,
-  publishConfig: { access: 'public' },
-  repository: bundle.repository,
-  type: 'module',
-  main: host.main,
-  types: host.types,
-  exports: {
-    '.': host.exports['.'],
-    './invariant': host.exports['./invariant'],
-    './sqlite-provider': host.exports['./sqlite-provider'],
-    './types': host.exports['./types'],
-    './typert': host.exports['./typert'],
-    './remote': host.exports['./remote'],
-    './service': host.exports['./service'],
-    './client': { default: './client.js' },
-    './package.json': './package.json',
-  },
-  dependencies: host.dependencies,
-  peerDependencies: { ...host.peerDependencies, ...client.peerDependencies },
-  license: bundle.license,
-  dsh: { bundle: bundle.dsh.bundle, client: client.dsh.client },
+const siblings = new Set(process.argv[3].split(' '))
+const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'))
+for (const field of ['dependencies', 'peerDependencies', 'devDependencies']) {
+  const deps = manifest[field]
+  if (deps === undefined) continue
+  for (const dir of siblings) {
+    const name = JSON.parse(fs.readFileSync(`${dir}/package.json`, 'utf8')).name
+    delete deps[name]
+  }
+  if (Object.keys(deps).length === 0) delete manifest[field]
 }
-fs.writeFileSync(`${packDir}/package.json`, JSON.stringify(manifest, null, 2) + '\n')
-
-// The dist patch: the sqlite/usage/service rows name the flat root (the
-// sqlite default path helper is copied from the bundle patch verbatim); the
-// client UI rides the usage row's package dsh.client instead of its own row.
-const sqlitePath = 'token-usage.sqlite'
-const patch = `\
-# The dsh-token-usage-dashboard dist patch: flat single-package rows over any
-# web-surface profile. The browser panel ships through the token-usage row's
-# package dsh.client declaration (no dedicated client row).
-
-- insert:
-    - id: token-usage-sqlite
-      name: '${name}/sqlite-provider'
-      config:
-        path: !!js dshHomePath('${sqlitePath}')
-
-    - id: token-usage
-      name: '${name}'
-      inject: [tokenUsageStore]
-
-    - id: token-usage-remote
-      name: '${name}/service'
-      inject: [tokenUsageStore]
-`
-fs.writeFileSync(`${packDir}/cordis.patch.yml`, patch)
+fs.writeFileSync(process.argv[2], JSON.stringify(manifest, null, 2) + '\n')
 NODE
-
 find "$PACK" -name '*.map' -delete
 
-# Stage the pack as an orphan branch — dist never carries repo history.
+# 1) Push the tree to the `dist` branch for source browsing.
 cd "$PACK"
 git init -q
 git checkout -q -b "$BRANCH"
 git add -A
 git -c user.name=pack-dist -c user.email=pack-dist@local commit -q -m "dist: packed from $(git -C .. rev-parse --short HEAD)"
-git remote add origin "$REPO_URL"
+git remote add origin "$REPO"
 git push -q --force origin "$BRANCH"
 cd ..
+
+# 2) Publish the tarball as the `dist` release asset. A repo-suffixed asset
+#    name keeps the pnpm integrity path stable (a bare `dist.tgz` name hit a
+#    GitHub edge case earlier), so URL and asset name must stay in sync.
+PKG="$(node -p "require('./bundle/package.json').name.split('/')[1]")"
+TARBALL="/tmp/${PKG}-dist.tgz"
+tar czf "$TARBALL" -C "$PACK" .
 rm -rf "$PACK"
-echo "pack-dist: pushed $BRANCH to $REPO_URL"
+gh release delete "$BRANCH" --repo "$REPO" --yes >/dev/null 2>&1 || true
+gh release create "$BRANCH" "$TARBALL" --repo "$REPO" --title "$BRANCH" \
+  --notes "Installable: dsh plugin add https://github.com/$REPO/releases/download/dist/${PKG}-dist.tgz"
+rm -f "$TARBALL"
+echo "pack-dist: published $BRANCH release to $REPO"
