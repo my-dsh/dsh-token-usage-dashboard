@@ -34,13 +34,14 @@ The capture listener folds step boundaries through the shared `@deepseek-ai/dsh-
 
 ## Installation
 
+The panel renders only inside a web surface, so the target profile must be a **web-surface profile** (one that already provides the client runtime, connection, and `shell.overlay` layout). The default profile behind `dsh web` is named `web`. Requires `pnpm` on `PATH`.
+
 ```sh
-dsh plugin --profile <name> add https://github.com/my-dsh/dsh-token-usage-dashboard/releases/download/dist/dsh-token-usage-dashboard-dist.tgz
+# Replace <name> with an existing web-surface profile (the default web-surface profile is `web`)
+dsh plugin --profile web add https://github.com/my-dsh/dsh-token-usage-dashboard/releases/download/dist/dsh-token-usage-dashboard-dist.tgz
 ```
 
-The package declares `dsh.bundle`, so installing it joins the profile's bundle layer stack automatically; restart DSH to take effect.
-
-The panel renders only inside a web surface, so the target profile must already provide the client runtime, connection, and `shell.overlay` layout. Requires `pnpm` on `PATH`.
+The package declares `dsh.bundle`, so installing it joins the profile's bundle layer stack automatically; **restart DSH** to take effect.
 
 ### SQLite path
 
